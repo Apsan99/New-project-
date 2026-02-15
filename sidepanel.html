@@ -7,51 +7,66 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-  <div class="header">
-    <h1> Smart Notes</h1>
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <h1> Smart Note-Taker</h1>
     <div class="header-actions">
-      <button id="exportTxtBtn" title="Export as .txt">Text</button>
-      <button id="exportJsonBtn" title="Export as .json">JSON</button>
-      <label class="import-label" title="Import notes from JSON">
-         Import
-        <input type="file" id="importJsonInput" accept=".json" hidden />
-      </label>
-      <button id="darkToggle" title="Toggle dark mode">Dark</button>
+      <!-- Export dropdown -->
+      <div class="dropdown">
+        <button id="exportBtn" class="btn btn-small" title="Export notes"> Export</button>
+        <div class="dropdown-menu" id="exportMenu">
+          <button id="exportTxt">Export as .txt</button>
+          <button id="exportJson">Export as .json</button>
+        </div>
+      </div>
+      <!-- Import button -->
+      <button id="importBtn" class="btn btn-small" title="Import notes"> Import</button>
+      <input type="file" id="importFile" accept=".json" hidden />
     </div>
-  </div>
+  </header>
 
-  
+  <!-- ===== STATS BAR ===== -->
   <div class="stats-bar" id="statsBar">
     <span id="statTotal">0 notes</span>
     <span id="statSources">0 sources</span>
     <span id="statWords">0 words</span>
+    <span id="statChars">0 chars</span>
+    <span id="statReadTime">~0 min read</span>
   </div>
 
- 
-  <div class="tag-filter-bar" id="tagFilterBar"></div>
-
-  
+  <!-- ===== CONTROLS: Search, Sort, Category Filter ===== -->
   <div class="controls">
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search notes..." />
-      <button id="searchBtn">Search</Search></button>
-    </div>
-    <select id="sortSelect" title="Sort notes">
+    <input type="text" id="searchInput" placeholder=" Search notes..." />
+    <select id="sortSelect">
       <option value="newest">Newest first</option>
       <option value="oldest">Oldest first</option>
       <option value="alpha">A → Z</option>
       <option value="source">By source</option>
     </select>
+    <select id="categoryFilter">
+      <option value="all">All categories</option>
+      <option value="Research"> Research</option>
+      <option value="Ideas">Ideas</option>
+      <option value="To-Do">To-Do</option>
+      <option value="Reference"> Reference</option>
+      <option value="Uncategorized"> Uncategorized</option>
+    </select>
   </div>
 
   
-  <div id="notesContainer"></div>
+  <div class="tag-filter" id="tagFilter"></div>
 
   
-  <div class="footer">
-    <button id="clearAll">*Clear All Notes*</button>
+  <div id="notesList" class="notes-list"></div>
+
+  <div class="format-toolbar" id="formatToolbar" style="display:none;">
+    <button data-format="bold" title="Bold"><b>B</b></button>
+    <button data-format="italic" title="Italic"><i>I</i></button>
+    <button data-format="highlight" title="Highlight">🖍️</button>
+    <button data-format="bullet" title="Bullet list"> List</button>
+    <button id="closeEditor" class="btn-close-editor">✕ Close</button>
   </div>
+  <textarea id="editArea" style="display:none;"></textarea>
 
   <script src="sidepanel.js"></script>
 </body>

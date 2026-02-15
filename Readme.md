@@ -10,7 +10,8 @@ There are several ways of editing your application.
 ### Core
 - **Right-click to save** — Highlight any text on a webpage, right-click, and save it as a note
 - **Side Panel UI** — View and manage all your notes in Chrome's built-in side panel
-- **Search** — Instantly filter notes by keyword
+- **Search** — Instantly filter notes by keyword.
+-**Modify**- Highlight as you desire and sort by various basis
 
 --------------------------------------------------------------------------------------------------
 -  **Tags & Labels** — Auto-assigned color-coded tags based on the source website (YouTube = red, Wikipedia = blue, GitHub = gray, etc.). Add custom tags manually
@@ -57,7 +58,7 @@ smart-note-taker/
 1. Click the extension icon in the toolbar, or
 2. Open the Side Panel (Chrome menu → Side Panel → Smart Note-Taker)
 
-## 🧪 Testing
+##  Testing
 Since this is a Chrome extension, testing is done manually:
 1. Load the extension in Developer Mode (see Installation)
 2. Navigate to any webpage (e.g., Wikipedia, YouTube)
@@ -72,7 +73,26 @@ Since this is a Chrome extension, testing is done manually:
 
 
 ---
-## 🙏 Acknowledgments
-- Built for a hackclub Project 
-- Uses Chrome's native APIs — no external dependencies
-- Inspired by the need for a lightweight, privacy-first note-taking tool
+## Acknowledgments
+- Built for a hackclub Project .
+- Uses Chrome's native APIs — no external dependencies.
+- Inspired by the need for a lightweight, privacy-first note-taking tool.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

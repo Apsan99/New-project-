@@ -1,383 +1,419 @@
-// =============================================
-// Smart Note-Taker — Side Panel Logic (v2.0)
-// Features: Tags, Pin, Export, Import, Stats,
-//           Sort, Copy, Search, Edit, Dark Mode
-// =============================================
 
-const notesContainer = document.getElementById("notesContainer");
-const searchInput = document.getElementById("searchInput");
-const searchBtn = document.getElementById("searchBtn");
-const sortSelect = document.getElementById("sortSelect");
-const clearAllBtn = document.getElementById("clearAll");
-const darkToggle = document.getElementById("darkToggle");
-const exportTxtBtn = document.getElementById("exportTxtBtn");
-const exportJsonBtn = document.getElementById("exportJsonBtn");
-const importJsonInput = document.getElementById("importJsonInput");
-const tagFilterBar = document.getElementById("tagFilterBar");
+const notesList      = document.getElementById("notesList");
+const searchInput    = document.getElementById("searchInput");
+const sortSelect     = document.getElementById("sortSelect");
+const categoryFilter = document.getElementById("categoryFilter");
+const tagFilterArea  = document.getElementById("tagFilter");
+const exportBtn      = document.getElementById("exportBtn");
+const exportMenu     = document.getElementById("exportMenu");
+const exportTxt      = document.getElementById("exportTxt");
+const exportJson     = document.getElementById("exportJson");
+const importBtn      = document.getElementById("importBtn");
+const importFile     = document.getElementById("importFile");
+const formatToolbar  = document.getElementById("formatToolbar");
+const editArea       = document.getElementById("editArea");
+const closeEditor    = document.getElementById("closeEditor");
 
-let activeTagFilter = null; // currently selected tag filter
 
-// === Dark Mode Toggle ===
-darkToggle.addEventListener("click", () => {
-  document.body.classList.toggle("dark");
-  darkToggle.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+const statTotal    = document.getElementById("statTotal");
+const statSources  = document.getElementById("statSources");
+const statWords    = document.getElementById("statWords");
+const statChars    = document.getElementById("statChars");
+const statReadTime = document.getElementById("statReadTime");
+
+
+let allNotes    = [];   
+let activeTag   = null;
+let editingId   = null; 
+
+
+const NOTE_COLORS = ["none", "yellow", "green", "blue", "pink", "purple"];
+
+
+const CATEGORIES = ["Uncategorized", "Research", "Ideas", "To-Do", "Reference"];
+
+
+chrome.storage.local.get(["notes"], (result) => {
+  allNotes = result.notes || [];
+  renderEverything();
 });
 
-// === Load & Render Notes ===
-function loadNotes() {
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    let notes = data.notes;
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.notes) {
+    allNotes = changes.notes.newValue || [];
+    renderEverything();
+  }
+});
 
-    // Apply search filter
-    const query = searchInput.value.trim().toLowerCase();
-    if (query) {
-      notes = notes.filter(
-        (n) =>
-          n.text.toLowerCase().includes(query) ||
-          n.title.toLowerCase().includes(query) ||
-          n.url.toLowerCase().includes(query)
-      );
-    }
 
-    // Apply tag filter
-    if (activeTagFilter) {
-      notes = notes.filter((n) => {
-        const allTags = [...(n.tags || []), ...(n.customTags || [])];
-        return allTags.some((t) => t.label === activeTagFilter);
-      });
-    }
+function renderEverything() {
+  updateStats();
+  renderTagFilter();
+  renderNotes();
+}
 
-    // Apply sorting
-    const sortMode = sortSelect.value;
-    notes = sortNotes(notes, sortMode);
+function updateStats() {
+  const total = allNotes.length;
 
-    // Pinned notes always on top
-    const pinned = notes.filter((n) => n.pinned);
-    const unpinned = notes.filter((n) => !n.pinned);
-    notes = [...pinned, ...unpinned];
 
-    // Update stats
-    updateStats(data.notes); // use unfiltered for stats
-    // Update tag filter bar
-    renderTagFilterBar(data.notes);
+  const uniqueSources = new Set(allNotes.map((n) => n.url)).size;
 
-    // Render notes
-    notesContainer.innerHTML = "";
+ 
+  const totalWords = allNotes.reduce((sum, n) => {
+    const plainText = stripHtml(n.text);
+    return sum + plainText.split(/\s+/).filter(Boolean).length;
+  }, 0);
 
-    if (notes.length === 0) {
-      notesContainer.innerHTML =
-        '<div class="empty-state">No notes yet.<br>Highlight text → Right-click → 📝 Add to Notes</div>';
-      return;
-    }
+  
+  const totalChars = allNotes.reduce((sum, n) => sum + stripHtml(n.text).length, 0);
 
-    notes.forEach((note) => {
-      notesContainer.appendChild(createNoteCard(note));
+  
+  const readMin = Math.max(1, Math.round(totalWords / 200));
+
+  statTotal.textContent    = `${total} note${total !== 1 ? "s" : ""}`;
+  statSources.textContent  = `${uniqueSources} source${uniqueSources !== 1 ? "s" : ""}`;
+  statWords.textContent    = `${totalWords} words`;
+  statChars.textContent    = `${totalChars} chars`;
+  statReadTime.textContent = `~${readMin} min read`;
+}
+
+
+function stripHtml(html) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || "";
+}
+
+
+function renderTagFilter() {
+  
+  const tagSet = new Set();
+  allNotes.forEach((n) => (n.tags || []).forEach((t) => tagSet.add(t)));
+  const tags = [...tagSet].sort();
+
+  tagFilterArea.innerHTML = "";
+  tags.forEach((tag) => {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip" + (activeTag === tag ? " active" : "");
+    chip.style.background = tagColor(tag);
+    chip.style.color = "#fff";
+    chip.textContent = tag;
+    
+    chip.addEventListener("click", () => {
+      activeTag = activeTag === tag ? null : tag;
+      renderEverything();
     });
+    tagFilterArea.appendChild(chip);
   });
 }
 
-// === Sort Notes ===
-function sortNotes(notes, mode) {
-  const sorted = [...notes];
-  switch (mode) {
-    case "newest":
-      return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    case "oldest":
-      return sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    case "alpha":
-      return sorted.sort((a, b) => a.text.localeCompare(b.text));
-    case "source":
-      return sorted.sort((a, b) => a.url.localeCompare(b.url));
-    default:
-      return sorted;
+
+function renderNotes() {
+  const query        = searchInput.value.toLowerCase();
+  const sortBy       = sortSelect.value;
+  const catFilter    = categoryFilter.value;
+
+  
+  let filtered = allNotes.filter((note) => {
+    
+    const matchesSearch =
+      !query ||
+      stripHtml(note.text).toLowerCase().includes(query) ||
+      (note.url && note.url.toLowerCase().includes(query));
+
+    
+    const matchesTag = !activeTag || (note.tags || []).includes(activeTag);
+
+    
+    const noteCategory = note.category || "Uncategorized";
+    const matchesCat = catFilter === "all" || noteCategory === catFilter;
+
+    return matchesSearch && matchesTag && matchesCat;
+  });
+
+  
+  filtered.sort((a, b) => {
+    
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+
+    
+    switch (sortBy) {
+      case "oldest":
+        return a.timestamp - b.timestamp;
+      case "alpha":
+        return stripHtml(a.text).localeCompare(stripHtml(b.text));
+      case "source":
+        return (a.url || "").localeCompare(b.url || "");
+      default: // "newest"
+        return b.timestamp - a.timestamp;
+    }
+  });
+
+
+  if (filtered.length === 0) {
+    notesList.innerHTML = `
+      <div class="empty-state">
+        <h2>No notes yet</h2>
+        <p>Highlight text on any webpage, right-click → "Save to Smart Note-Taker"</p>
+      </div>`;
+    return;
+  }
+
+  notesList.innerHTML = "";
+  filtered.forEach((note) => {
+    const card = document.createElement("div");
+    const colorClass = note.color && note.color !== "none" ? ` color-${note.color}` : "";
+    card.className = "note-card" + (note.pinned ? " pinned" : "") + colorClass;
+
+    
+    const header = document.createElement("div");
+    header.className = "note-header";
+
+    const source = document.createElement("span");
+    source.className = "note-source";
+    source.textContent = note.url ? new URL(note.url).hostname : "Unknown source";
+    source.title = note.url || "";
+
+    const actions = document.createElement("div");
+    actions.className = "note-actions";
+
+    // Pin button
+    const pinBtn = document.createElement("button");
+    pinBtn.textContent = note.pinned ? "📌" : "Pin";
+    pinBtn.title = note.pinned ? "Unpin" : "Pin to top";
+    pinBtn.addEventListener("click", () => togglePin(note.id));
+
+    // Copy button
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy";
+    copyBtn.title = "Copy to clipboard";
+    copyBtn.addEventListener("click", () => copyNote(note, card));
+
+    // Edit button (opens formatting toolbar)
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "✏️";
+    editBtn.title = "Edit note";
+    editBtn.addEventListener("click", () => startEditing(note));
+
+    // Delete button
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Remove";
+    delBtn.title = "Delete note";
+    delBtn.addEventListener("click", () => deleteNote(note.id));
+
+    actions.append(pinBtn, copyBtn, editBtn, delBtn);
+    header.append(source, actions);
+
+    
+    const textDiv = document.createElement("div");
+    textDiv.className = "note-text";
+    textDiv.innerHTML = note.text; 
+
+  
+    const catSelect = document.createElement("select");
+    catSelect.className = "category-select";
+    CATEGORIES.forEach((cat) => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      if ((note.category || "Uncategorized") === cat) opt.selected = true;
+      catSelect.appendChild(opt);
+    });
+    catSelect.addEventListener("change", () => updateCategory(note.id, catSelect.value));
+
+    const colorPicker = document.createElement("div");
+    colorPicker.className = "color-picker";
+    NOTE_COLORS.forEach((c) => {
+      const dot = document.createElement("span");
+      dot.className = `color-dot dot-${c}` + ((note.color || "none") === c ? " active" : "");
+      dot.title = c === "none" ? "Default" : c;
+      dot.addEventListener("click", () => updateColor(note.id, c));
+      colorPicker.appendChild(dot);
+    });
+
+    // --- Tags -
+    const tagsDiv = document.createElement("div");
+    tagsDiv.className = "note-tags";
+    (note.tags || []).forEach((tag) => {
+      const tagSpan = document.createElement("span");
+      tagSpan.className = "note-tag";
+      tagSpan.style.background = tagColor(tag);
+      tagSpan.style.color = "#fff";
+      tagSpan.textContent = tag;
+      tagsDiv.appendChild(tagSpan);
+    });
+
+    // Manual tag input.
+    const tagInput = document.createElement("input");
+    tagInput.className = "tag-input";
+    tagInput.placeholder = "+ tag";
+    tagInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && tagInput.value.trim()) {
+        addTag(note.id, tagInput.value.trim());
+        tagInput.value = "";
+      }
+    });
+    tagsDiv.appendChild(tagInput);
+
+   
+    const dateDiv = document.createElement("div");
+    dateDiv.className = "note-date";
+    dateDiv.textContent = new Date(note.timestamp).toLocaleString();
+
+  
+    card.append(header, textDiv, catSelect, colorPicker, tagsDiv, dateDiv);
+    notesList.appendChild(card);
+  });
+}
+
+
+function togglePin(id) {
+  const note = allNotes.find((n) => n.id === id);
+  if (note) {
+    note.pinned = !note.pinned;
+    saveNotes();
   }
 }
 
-// === Create Note Card ===
-function createNoteCard(note) {
-  const card = document.createElement("div");
-  card.className = "note-card" + (note.pinned ? " pinned" : "");
-
-  // Top row: source + action buttons
-  const top = document.createElement("div");
-  top.className = "note-top";
-
-  const source = document.createElement("div");
-  source.className = "note-source";
-  source.innerHTML = `<a href="${note.url}" target="_blank" title="${note.title}">${note.title || note.url}</a>`;
-
-  const actions = document.createElement("div");
-  actions.className = "note-actions";
-
-  // Pin button
-  const pinBtn = document.createElement("button");
-  pinBtn.textContent = note.pinned ? "📍" : "📍";
-  pinBtn.title = note.pinned ? "Unpin" : "Pin to top";
-  pinBtn.addEventListener("click", () => togglePin(note.id));
-
-  // Copy button
-  const copyBtn = document.createElement("button");
-  copyBtn.textContent = "📋";
-  copyBtn.title = "Copy to clipboard";
-  copyBtn.addEventListener("click", () => copyToClipboard(note.text, card));
-
-  // Edit button
-  const editBtn = document.createElement("button");
-  editBtn.textContent = "✏️";
-  editBtn.title = "Edit note";
-
-  // Delete button
-  const deleteBtn = document.createElement("button");
-  deleteBtn.textContent = "🗑️";
-  deleteBtn.title = "Delete note";
-  deleteBtn.addEventListener("click", () => deleteNote(note.id));
-
-  actions.append(pinBtn, copyBtn, editBtn, deleteBtn);
-  top.append(source, actions);
-
-  // Text area
-  const textarea = document.createElement("textarea");
-  textarea.className = "note-text";
-  textarea.value = note.text;
-  textarea.readOnly = true;
-  textarea.rows = Math.min(Math.max(note.text.split("\n").length, 2), 6);
-
-  // Save button (hidden until edit mode)
-  const saveBtn = document.createElement("button");
-  saveBtn.className = "save-btn";
-  saveBtn.textContent = "💾 Save";
-
-  // Edit toggle
-  editBtn.addEventListener("click", () => {
-    const isEditing = !textarea.readOnly;
-    if (isEditing) {
-      textarea.readOnly = true;
-      saveBtn.classList.remove("visible");
-    } else {
-      textarea.readOnly = false;
-      textarea.focus();
-      saveBtn.classList.add("visible");
-    }
-  });
-
-  // Save handler
-  saveBtn.addEventListener("click", () => {
-    updateNoteText(note.id, textarea.value);
-    textarea.readOnly = true;
-    saveBtn.classList.remove("visible");
-  });
-
-  // Tags area
-  const tagsDiv = document.createElement("div");
-  tagsDiv.className = "note-tags";
-
-  // Render auto tags
-  (note.tags || []).forEach((tag) => {
-    tagsDiv.appendChild(createTagElement(tag, false));
-  });
-
-  // Render custom tags (removable)
-  (note.customTags || []).forEach((tag) => {
-    tagsDiv.appendChild(createTagElement(tag, true, note.id));
-  });
-
-  // Add custom tag input
-  const tagInput = document.createElement("input");
-  tagInput.className = "add-tag-input";
-  tagInput.placeholder = "+ tag";
-  tagInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && tagInput.value.trim()) {
-      addCustomTag(note.id, tagInput.value.trim());
-      tagInput.value = "";
-    }
-  });
-  tagsDiv.appendChild(tagInput);
-
-  // Footer: date + save
-  const footer = document.createElement("div");
-  footer.className = "note-footer";
-
-  const date = document.createElement("span");
-  date.className = "note-date";
-  date.textContent = new Date(note.timestamp).toLocaleString();
-
-  footer.append(date, saveBtn);
-
-  // Assemble card
-  card.append(top, textarea, tagsDiv, footer);
-  return card;
+function deleteNote(id) {
+  allNotes = allNotes.filter((n) => n.id !== id);
+  saveNotes();
 }
 
-// === Tag Element ===
-function createTagElement(tag, removable, noteId) {
-  const el = document.createElement("span");
-  el.className = "tag";
-  el.style.background = tag.color || "#888";
-  el.textContent = tag.label;
-
-  if (removable) {
-    const x = document.createElement("span");
-    x.className = "remove-tag";
-    x.textContent = "×";
-    x.addEventListener("click", () => removeCustomTag(noteId, tag.label));
-    el.appendChild(x);
-  }
-  return el;
-}
-
-// === Tag Filter Bar ===
-function renderTagFilterBar(notes) {
-  tagFilterBar.innerHTML = "";
-  const tagSet = new Map();
-
-  notes.forEach((n) => {
-    [...(n.tags || []), ...(n.customTags || [])].forEach((t) => {
-      if (!tagSet.has(t.label)) tagSet.set(t.label, t.color);
-    });
-  });
-
-  if (tagSet.size === 0) return;
-
-  // "All" button
-  const allBtn = document.createElement("button");
-  allBtn.className = "tag-filter-btn" + (!activeTagFilter ? " active" : "");
-  allBtn.textContent = "All";
-  allBtn.style.background = "#888";
-  allBtn.addEventListener("click", () => {
-    activeTagFilter = null;
-    loadNotes();
-  });
-  tagFilterBar.appendChild(allBtn);
-
-  tagSet.forEach((color, label) => {
-    const btn = document.createElement("button");
-    btn.className = "tag-filter-btn" + (activeTagFilter === label ? " active" : "");
-    btn.textContent = label;
-    btn.style.background = color;
-    btn.addEventListener("click", () => {
-      activeTagFilter = label;
-      loadNotes();
-    });
-    tagFilterBar.appendChild(btn);
-  });
-}
-
-// === Statistics ===
-function updateStats(notes) {
-  document.getElementById("statTotal").textContent = `${notes.length} notes`;
-  const sources = new Set(notes.map((n) => { try { return new URL(n.url).hostname; } catch { return n.url; } }));
-  document.getElementById("statSources").textContent = `${sources.size} sources`;
-  const words = notes.reduce((sum, n) => sum + n.text.split(/\s+/).filter(Boolean).length, 0);
-  document.getElementById("statWords").textContent = `${words} words`;
-}
-
-// === Pin Toggle ===
-function togglePin(noteId) {
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const notes = data.notes.map((n) =>
-      n.id === noteId ? { ...n, pinned: !n.pinned } : n
-    );
-    chrome.storage.local.set({ notes }, loadNotes);
-  });
-}
-
-// === Copy to Clipboard ===
-function copyToClipboard(text, card) {
-  navigator.clipboard.writeText(text).then(() => {
-    const tooltip = document.createElement("div");
+function copyNote(note, cardEl) {
+  const plainText = stripHtml(note.text);
+  navigator.clipboard.writeText(plainText).then(() => {
+    const tooltip = document.createElement("span");
     tooltip.className = "copied-tooltip";
     tooltip.textContent = "Copied!";
-    card.appendChild(tooltip);
-    setTimeout(() => tooltip.remove(), 1300);
+    cardEl.appendChild(tooltip);
+    setTimeout(() => tooltip.remove(), 1500);
   });
 }
 
-// === Update Note Text ===
-function updateNoteText(noteId, newText) {
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const notes = data.notes.map((n) =>
-      n.id === noteId ? { ...n, text: newText } : n
-    );
-    chrome.storage.local.set({ notes }, loadNotes);
-  });
+function addTag(id, tag) {
+  const note = allNotes.find((n) => n.id === id);
+  if (note) {
+    if (!note.tags) note.tags = [];
+    if (!note.tags.includes(tag)) {
+      note.tags.push(tag);
+      saveNotes();
+    }
+  }
 }
 
-// === Delete Single Note ===
-function deleteNote(noteId) {
-  if (!confirm("Delete this note?")) return;
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const notes = data.notes.filter((n) => n.id !== noteId);
-    chrome.storage.local.set({ notes }, loadNotes);
-  });
+function updateCategory(id, category) {
+  const note = allNotes.find((n) => n.id === id);
+  if (note) {
+    note.category = category;
+    saveNotes();
+  }
 }
 
-// === Add Custom Tag ===
-function addCustomTag(noteId, label) {
-  // Generate a random-ish color for custom tags
-  const colors = ["#e67e22", "#2ecc71", "#9b59b6", "#1abc9c", "#e84393", "#00cec9", "#fdcb6e"];
-  const color = colors[Math.floor(Math.random() * colors.length)];
-
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const notes = data.notes.map((n) => {
-      if (n.id === noteId) {
-        const existing = (n.customTags || []).map((t) => t.label);
-        if (!existing.includes(label)) {
-          return { ...n, customTags: [...(n.customTags || []), { label, color }] };
-        }
-      }
-      return n;
-    });
-    chrome.storage.local.set({ notes }, loadNotes);
-  });
+function updateColor(id, color) {
+  const note = allNotes.find((n) => n.id === id);
+  if (note) {
+    note.color = color;
+    saveNotes();
+  }
 }
 
-// === Remove Custom Tag ===
-function removeCustomTag(noteId, label) {
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const notes = data.notes.map((n) => {
-      if (n.id === noteId) {
-        return { ...n, customTags: (n.customTags || []).filter((t) => t.label !== label) };
-      }
-      return n;
-    });
-    chrome.storage.local.set({ notes }, loadNotes);
-  });
+function startEditing(note) {
+  editingId = note.id;
+  editArea.value = note.text;
+  formatToolbar.style.display = "flex";
+  editArea.style.display = "block";
+  editArea.focus();
 }
 
-// === Export as Plain Text ===
-exportTxtBtn.addEventListener("click", () => {
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const text = data.notes
-      .map(
-        (n, i) =>
-          `--- Note ${i + 1} ---\n${n.text}\nSource: ${n.title} (${n.url})\nDate: ${new Date(n.timestamp).toLocaleString()}\nTags: ${[...(n.tags || []), ...(n.customTags || [])].map((t) => t.label).join(", ")}\n`
-      )
-      .join("\n");
-    downloadFile(text, "smart-notes.txt", "text/plain");
+
+closeEditor.addEventListener("click", () => {
+  if (editingId) {
+    const note = allNotes.find((n) => n.id === editingId);
+    if (note) {
+      note.text = editArea.value;
+      saveNotes();
+    }
+  }
+  editingId = null;
+  formatToolbar.style.display = "none";
+  editArea.style.display = "none";
+});
+
+document.querySelectorAll("[data-format]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const format = btn.dataset.format;
+    const start = editArea.selectionStart;
+    const end   = editArea.selectionEnd;
+    const selected = editArea.value.substring(start, end);
+
+    let wrapped = selected;
+    switch (format) {
+      case "bold":
+        wrapped = `<b>${selected}</b>`;
+        break;
+      case "italic":
+        wrapped = `<i>${selected}</i>`;
+        break;
+      case "highlight":
+        wrapped = `<mark>${selected}</mark>`;
+        break;
+      case "bullet":
+        // Turn each line into a bullet point
+        wrapped = selected
+          .split("\n")
+          .map((line) => `• ${line}`)
+          .join("\n");
+        break;
+    }
+
+    // Replace selected text with formatted version
+    editArea.value =
+      editArea.value.substring(0, start) + wrapped + editArea.value.substring(end);
+    editArea.focus();
   });
 });
 
-// === Export as JSON ===
-exportJsonBtn.addEventListener("click", () => {
-  chrome.storage.local.get({ notes: [] }, (data) => {
-    const json = JSON.stringify(data.notes, null, 2);
-    downloadFile(json, "smart-notes.json", "application/json");
-  });
+
+exportBtn.addEventListener("click", () => {
+  exportBtn.parentElement.classList.toggle("open");
 });
 
-// === Download Helper ===
+
+exportTxt.addEventListener("click", () => {
+  const text = allNotes
+    .map((n) => {
+      const plain = stripHtml(n.text);
+      const cat = n.category || "Uncategorized";
+      return `[${cat}] ${plain}\nSource: ${n.url || "N/A"}\nDate: ${new Date(n.timestamp).toLocaleString()}\nTags: ${(n.tags || []).join(", ") || "none"}\n`;
+    })
+    .join("\n---\n\n");
+  downloadFile(text, "smart-notes.txt", "text/plain");
+  exportBtn.parentElement.classList.remove("open");
+});
+
+
+exportJson.addEventListener("click", () => {
+  const json = JSON.stringify(allNotes, null, 2);
+  downloadFile(json, "smart-notes.json", "application/json");
+  exportBtn.parentElement.classList.remove("open");
+});
+
+
 function downloadFile(content, filename, type) {
   const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-// === Import JSON ===
-importJsonInput.addEventListener("change", (e) => {
+
+importBtn.addEventListener("click", () => importFile.click());
+importFile.addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
@@ -385,63 +421,51 @@ importJsonInput.addEventListener("change", (e) => {
   reader.onload = (event) => {
     try {
       const imported = JSON.parse(event.target.result);
-      if (!Array.isArray(imported)) {
-        alert("Invalid file: expected an array of notes.");
-        return;
-      }
+      if (!Array.isArray(imported)) throw new Error("Invalid format");
 
-      chrome.storage.local.get({ notes: [] }, (data) => {
-        const existing = data.notes;
-        // Merge: skip duplicates based on text + url
-        const existingKeys = new Set(existing.map((n) => n.text + n.url));
-        const newNotes = imported.filter((n) => !existingKeys.has(n.text + n.url));
-
-        // Ensure imported notes have required fields
-        const cleaned = newNotes.map((n) => ({
-          id: n.id || Date.now().toString() + Math.random().toString(36).slice(2),
-          text: n.text || "",
-          url: n.url || "",
-          title: n.title || "",
-          timestamp: n.timestamp || new Date().toISOString(),
-          pinned: n.pinned || false,
-          tags: n.tags || [],
-          customTags: n.customTags || []
-        }));
-
-        const merged = [...existing, ...cleaned];
-        chrome.storage.local.set({ notes: merged }, () => {
-          alert(`Imported ${cleaned.length} new note(s)!`);
-          loadNotes();
-        });
+      
+      let added = 0;
+      imported.forEach((note) => {
+        const isDuplicate = allNotes.some(
+          (existing) => existing.text === note.text && existing.url === note.url
+        );
+        if (!isDuplicate) {
+          allNotes.push(note);
+          added++;
+        }
       });
-    } catch {
-      alert("Error reading file. Make sure it's valid JSON.");
+      saveNotes();
+      alert(`Imported ${added} new note(s). ${imported.length - added} duplicate(s) skipped.`);
+    } catch (err) {
+      alert("Error importing file. Make sure it's a valid JSON export.");
     }
   };
   reader.readAsText(file);
-  importJsonInput.value = ""; // reset
+  
+  importFile.value = "";
 });
 
-// === Clear All ===
-clearAllBtn.addEventListener("click", () => {
-  if (confirm("Delete ALL notes? This cannot be undone.")) {
-    chrome.storage.local.set({ notes: [] }, loadNotes);
+
+searchInput.addEventListener("input", renderNotes);
+sortSelect.addEventListener("change", renderNotes);
+categoryFilter.addEventListener("change", renderNotes);
+
+
+function saveNotes() {
+  chrome.storage.local.set({ notes: allNotes }, () => {
+    renderEverything();
+  });
+}
+
+
+function tagColor(tag) {
+  const colors = [
+    "#4361ee", "#f72585", "#4cc9f0", "#7209b7",
+    "#3a86a7", "#fb5607", "#06d6a0", "#e63946",
+  ];
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
   }
-});
-
-// === Search ===
-searchBtn.addEventListener("click", loadNotes);
-searchInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") loadNotes();
-});
-
-// === Sort ===
-sortSelect.addEventListener("change", loadNotes);
-
-// === Auto-refresh on storage change ===
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.notes) loadNotes();
-});
-
-// === Initial Load ===
-loadNotes();
+  return colors[Math.abs(hash) % colors.length];
+}
