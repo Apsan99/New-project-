@@ -8,24 +8,50 @@
 </head>
 <body>
 
-  <header>
-    <h1 smart Notes Taker!! </h1>
-    <button id="dark-mode-btn" title="Toggle dark mode">Dark</button>
-  </header>
-
-
-  <div class="search-bar">
-    <input type="text" id="search-input" placeholder="Search notes..." />
-    <button id="search-btn">Search</button>
+  <div class="header">
+    <h1> Smart Notes</h1>
+    <div class="header-actions">
+      <button id="exportTxtBtn" title="Export as .txt">Text</button>
+      <button id="exportJsonBtn" title="Export as .json">JSON</button>
+      <label class="import-label" title="Import notes from JSON">
+         Import
+        <input type="file" id="importJsonInput" accept=".json" hidden />
+      </label>
+      <button id="darkToggle" title="Toggle dark mode">Dark</button>
+    </div>
   </div>
 
-
-  <div class="actions">
-    <button id="clear-all-btn">Clear All Notes</button>
+  
+  <div class="stats-bar" id="statsBar">
+    <span id="statTotal">0 notes</span>
+    <span id="statSources">0 sources</span>
+    <span id="statWords">0 words</span>
   </div>
 
+ 
+  <div class="tag-filter-bar" id="tagFilterBar"></div>
 
-  <div id="notes-container"></div>
+  
+  <div class="controls">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search notes..." />
+      <button id="searchBtn">Search</Search></button>
+    </div>
+    <select id="sortSelect" title="Sort notes">
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+      <option value="alpha">A → Z</option>
+      <option value="source">By source</option>
+    </select>
+  </div>
+
+  
+  <div id="notesContainer"></div>
+
+  
+  <div class="footer">
+    <button id="clearAll">*Clear All Notes*</button>
+  </div>
 
   <script src="sidepanel.js"></script>
 </body>

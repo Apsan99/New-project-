@@ -1,14 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Smart Note-Taker",
-  "version": "1.0",
-  "description": "Highlight text on any webpage and save it as a note with one right-click.",
-  "permissions": [
-    "contextMenus",
-    "storage",
-    "sidePanel",
-    "activeTab"
-  ],
+  "version": "2.0",
+  "description": "Highlight text, right-click to save notes with tags, pinning, export/import, and more.",
+  "permissions": ["contextMenus", "storage", "sidePanel", "activeTab"],
   "background": {
     "service_worker": "background.js"
   },
@@ -21,3 +16,5 @@
     "128": "icons/icon128.png"
   }
 }
+
+
